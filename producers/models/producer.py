@@ -38,19 +38,25 @@ class Producer:
         #
         #
         self.broker_properties = {
-            # TODO
-            # TODO
-            # TODO
+            "broker.id": 0,
+            "log.dirs": "/tmp/kafka-logs",
+            "zookeeper.connect": "localhost:2181",
+            "schema.registry.url": "http://localhost:8081",
+            "bootstrap.servers": "PLAINTEXT://localhost:9092"
         }
 
         # If the topic does not already exist, try to create it
+        print(Producer.existing_topics)
+        print("New topic = ", topic_name)
         if self.topic_name not in Producer.existing_topics:
             self.create_topic()
             Producer.existing_topics.add(self.topic_name)
 
         # TODO: Configure the AvroProducer
-        # self.producer = AvroProducer(
-        # )
+        self.producer = AvroProducer({'bootstrap.servers': self.broker_properties["bootstrap.servers"], 
+                                      'schema.registry.url': self.broker_properties["schema.registry.url"]},
+        default_key_schema=self.key_schema, default_value_schema=self.value_schema
+        )
 
     def create_topic(self):
         """Creates the producer topic if it does not already exist"""
@@ -60,6 +66,25 @@ class Producer:
         # the Kafka Broker.
         #
         #
+        client = AdminClient({'bootstrap.servers': self.broker_properties["bootstrap.servers"]})
+        topic_meta = client.list_topics()
+        
+        if topic_meta.topics.get(self.topic_name) is None:
+            
+            newTopic = NewTopic(
+                topic=self.topic_name, 
+                num_partitions=self.num_partitions, 
+                replication_factor=self.num_replicas,
+                config={
+                    "cleanup.policy": "compaction",
+                    "compression.type": "lz4",        
+                    "delete.retention.ms": 100,
+                    "file.delete.delay.ms": 100
+                }
+            )
+            result=client.create_topics([newTopic])
+            
+            print("Creating topic = ", result)
         logger.info("topic creation kafka integration incomplete - skipping")
 
     def time_millis(self):
@@ -71,7 +96,8 @@ class Producer:
         #
         # TODO: Write cleanup code for the Producer here
         #
-        #
+        if self.producer is not None:
+            self.producer.flush()
         logger.info("producer close incomplete - skipping")
 
     def time_millis(self):
